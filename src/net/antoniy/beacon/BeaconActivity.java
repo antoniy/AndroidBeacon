@@ -21,33 +21,34 @@ public class BeaconActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
-        WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-		DhcpInfo dhcp = wifi.getDhcpInfo();
-		// handle null somehow
-
-		int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
-		byte[] quads = new byte[4];
-		for (int k = 0; k < 4; k++)
-			quads[k] = (byte) ((broadcast >> k * 8) & 0xFF);
-		
-		InetAddress broadcastAddr = null;
-		try {
-			broadcastAddr = Inet4Address.getByAddress(quads);
-		} catch (UnknownHostException e) {
-			e.printStackTrace();
-		}
-		
-		AlertDialog alertDialog;
-		alertDialog = new AlertDialog.Builder(this).create();
-		alertDialog.setTitle("Packing List");
-		alertDialog.setMessage("Address: " + broadcastAddr.getHostAddress());
-		alertDialog.show();
+//        WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+//		DhcpInfo dhcp = wifi.getDhcpInfo();
+//		// handle null somehow
+//
+//		int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+//		byte[] quads = new byte[4];
+//		for (int k = 0; k < 4; k++)
+//			quads[k] = (byte) ((broadcast >> k * 8) & 0xFF);
+//		
+//		InetAddress broadcastAddr = null;
+//		try {
+//			broadcastAddr = Inet4Address.getByAddress(quads);
+//		} catch (UnknownHostException e) {
+//			e.printStackTrace();
+//		}
+//		
+//		AlertDialog alertDialog;
+//		alertDialog = new AlertDialog.Builder(this).create();
+//		alertDialog.setTitle("Packing List");
+//		alertDialog.setMessage("Address: " + broadcastAddr.getHostAddress());
+//		alertDialog.show();
     }
     
     @Override
     protected void onPause() {
     	if(beaconAsyncTask != null) {
-    		beaconAsyncTask.cancel(true);
+    		beaconAsyncTask.cancel(false);
+    		beaconAsyncTask = null;
     	}
     	super.onPause();
     }
@@ -55,10 +56,10 @@ public class BeaconActivity extends Activity {
     @Override
     protected void onResume() {
     	if(beaconAsyncTask != null) {
-    		beaconAsyncTask.cancel(true);
+    		beaconAsyncTask.cancel(false);
     	}
     	
-    	beaconAsyncTask = new BeaconAsyncTask();
+    	beaconAsyncTask = new BeaconAsyncTask(this);
     	beaconAsyncTask.execute();
     	super.onResume();
     }
