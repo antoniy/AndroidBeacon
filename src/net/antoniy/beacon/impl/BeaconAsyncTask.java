@@ -1,6 +1,7 @@
 package net.antoniy.beacon.impl;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -12,7 +13,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import android.content.Context;
@@ -29,21 +35,57 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 
 	private final static int LOCAL_PORT = 10010;
 	private final static long SEND_BEACON_INTERVAL = 1000L;
-	private final static String SEND_DATA = "Hello, Beacon app!";
+//	private final static String SEND_DATA = "Hello, Beacon app!";
 	
 	private Context context;
 	private DatagramSocket socket = null;
 	private DatagramChannel udpChannel = null;
+	private String data;
 	
-	public BeaconAsyncTask(Context context) {
+	public BeaconAsyncTask(Context context, String data) {
 		this.context = context;
+		this.data = data;
 	}
 	
 	private boolean isWifiConnected() {
 		ConnectivityManager connManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo wifiInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-		
+
 		return wifiInfo.isConnected();
+	}
+	
+//	public static void main(String[] args) {
+//		byte[] array = {1, 2, 3, 4};
+//		
+//		for (byte b : array) {
+//			System.out.print(b + " ");
+//		}
+//		System.out.println();
+//		
+//		array = reverse(array);
+//		
+//		for (byte b : array) {
+//			System.out.print(b + " ");
+//		}
+//		System.out.println();
+//	}
+	
+	private byte[] reverse(byte[] array) {
+		int limit = array.length / 2;
+		
+		for (int i = 0; i < limit; i++) {
+			byte tmp = array[i];
+			array[i] = array[array.length - i - 1];
+			array[array.length - i - 1] = tmp;
+		}
+		
+		return array;
+	}
+	
+	private byte[] getMyInetAddress() {
+		WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+
+		return reverse(BigInteger.valueOf(wifiManager.getConnectionInfo().getIpAddress()).toByteArray());
 	}
 	
 	@Override
@@ -71,6 +113,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 			InetAddress broadcastAddr = getNetworkBroadcastAddr();
 			ByteBuffer buffer = ByteBuffer.allocate(1024);
 			long lastRun = System.currentTimeMillis();
+			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
 			while(true) {
 				if(isCancelled() || !isWifiConnected()) {
 					break;
@@ -87,15 +130,23 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 							buffer.clear();
 							InetSocketAddress senderAddr = (InetSocketAddress) udpChannel.receive(buffer);
 							
-							String data = new String(buffer.array()).trim();
-							Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + data + ", " + data.getBytes().length);
+							if(senderAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), getMyInetAddress())) {
+								//TODO: Fix buffer problems!
+								
+//								String data = decoder.decode(buffer, true).toString();
+//								Log.i(TAG, buffer.position() + "");
+//								Log.i(TAG, buffer.mark() + "");
+//								String data = buffer.toString().subSequence(0, buffer.position()).toString();
+								Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + data + ", " + data.getBytes().length);
+							}
+
 						}
 						
 					}
 				}
 
 				if(System.currentTimeMillis() - lastRun > SEND_BEACON_INTERVAL) {
-					DatagramPacket packet = new DatagramPacket(SEND_DATA.getBytes(), SEND_DATA.length(), broadcastAddr, LOCAL_PORT);
+					DatagramPacket packet = new DatagramPacket(data.getBytes(), data.length(), broadcastAddr, LOCAL_PORT);
 					socket.send(packet);
 					
 					lastRun = System.currentTimeMillis();

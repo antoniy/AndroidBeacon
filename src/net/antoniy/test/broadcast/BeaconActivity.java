@@ -1,6 +1,7 @@
 package net.antoniy.test.broadcast;
 
 import net.antoniy.beacon.Beacon;
+import net.antoniy.beacon.BeaconException;
 import net.antoniy.beacon.R;
 import net.antoniy.beacon.impl.BeaconFactory;
 import android.app.Activity;
@@ -14,8 +15,14 @@ public class BeaconActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-    
+
+        BroadcastData data = new BroadcastData();
+        data.setDeviceId("af69df6fdf589m");
+        data.setTcpHost("192.168.1.1");
+        data.setTcpPort("6754");
+        
         beacon = BeaconFactory.createBeacon(this);
+        beacon.initBeaconData(data, BroadcastData.class);
     }
     
     @Override
@@ -27,7 +34,11 @@ public class BeaconActivity extends Activity {
     
     @Override
     protected void onResume() {
-    	beacon.startBeacon();
+    	try {
+    		beacon.startBeacon();
+	    } catch (BeaconException e) {
+	    	e.printStackTrace();
+	    }
     	
     	super.onResume();
     }

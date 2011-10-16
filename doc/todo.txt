@@ -1,0 +1,4 @@
+1. Update data runtime
+	- See if we need to update the Class as well
+2. Notify on beacon stop
+3. Configure if the beacon should start itself on wifi ON
