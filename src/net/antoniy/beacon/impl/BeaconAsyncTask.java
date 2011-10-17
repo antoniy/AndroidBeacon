@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -111,7 +112,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 			udpChannel.register(selector, SelectionKey.OP_READ);
 			
 			InetAddress broadcastAddr = getNetworkBroadcastAddr();
-			ByteBuffer buffer = ByteBuffer.allocate(1024);
+			ByteBuffer buffer = null;
 			long lastRun = System.currentTimeMillis();
 			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
 			while(true) {
@@ -127,17 +128,13 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 						i.remove();
 						
 						if(key.isReadable()) {
-							buffer.clear();
+							buffer = ByteBuffer.allocate(1024);
 							InetSocketAddress senderAddr = (InetSocketAddress) udpChannel.receive(buffer);
 							
 							if(senderAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), getMyInetAddress())) {
-								//TODO: Fix buffer problems!
+								String receivedData = new String(buffer.array()).trim();
 								
-//								String data = decoder.decode(buffer, true).toString();
-//								Log.i(TAG, buffer.position() + "");
-//								Log.i(TAG, buffer.mark() + "");
-//								String data = buffer.toString().subSequence(0, buffer.position()).toString();
-								Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + data + ", " + data.getBytes().length);
+								Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + receivedData + ", " + data.getBytes().length);
 							}
 
 						}
