@@ -10,16 +10,11 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 import android.content.Context;
@@ -114,7 +109,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 			InetAddress broadcastAddr = getNetworkBroadcastAddr();
 			ByteBuffer buffer = null;
 			long lastRun = System.currentTimeMillis();
-			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
+//			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
 			while(true) {
 				if(isCancelled() || !isWifiConnected()) {
 					break;
@@ -194,6 +189,12 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		Log.i(TAG, "Broadcast: " + broadcastAddr.getHostAddress());
 		
 		return broadcastAddr;
+	}
+	
+	public void updateBeaconData(String data) {
+		synchronized(this.data) {
+			this.data = data;
+		}
 	}
 	
 	@Override

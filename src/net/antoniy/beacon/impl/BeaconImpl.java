@@ -32,6 +32,16 @@ class BeaconImpl implements Beacon {
 		this.dataClass = dataClass;
 	}
 	
+	public void updateData(Object newData) throws BeaconException {
+		if(!dataClass.isInstance(newData)) {
+			throw new BeaconException("New data is not from the spcified type: " + dataClass.getSimpleName());
+		}
+		
+		this.data = new Gson().toJson(newData);
+		
+		// TODO: update in the async task
+	}
+	
 	/* (non-Javadoc)
 	 * @see net.antoniy.beacon.impl.Beacon#stopBeacon()
 	 */
