@@ -1,4 +1,4 @@
-package net.antoniy.beacon;
+package net.antoniy.beacon.exception;
 
 public class BeaconException extends Exception {
 

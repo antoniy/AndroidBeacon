@@ -14,8 +14,11 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Arrays;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
+
+import net.antoniy.beacon.DeviceInfo;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -27,20 +30,22 @@ import android.util.Log;
 
 class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 	
-	private static final String TAG = "BeaconAsyncTask";
+	private static final String TAG = BeaconAsyncTask.class.getSimpleName();
 
-	private final static int LOCAL_PORT = 10010;
-	private final static long SEND_BEACON_INTERVAL = 1000L;
-//	private final static String SEND_DATA = "Hello, Beacon app!";
-	
 	private Context context;
 	private DatagramSocket socket = null;
 	private DatagramChannel udpChannel = null;
 	private String data;
+	private int sendInterval;
+	private int udpPort;
+	private Hashtable<Long, DeviceInfo> devices;
 	
-	public BeaconAsyncTask(Context context, String data) {
+	public BeaconAsyncTask(Context context, String data, int sendInterval, int udpPort) {
 		this.context = context;
 		this.data = data;
+		this.sendInterval = sendInterval;
+		this.udpPort = udpPort;
+		this.devices = new Hashtable<Long, DeviceInfo>();
 	}
 	
 	private boolean isWifiConnected() {
@@ -50,32 +55,36 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		return wifiInfo.isConnected();
 	}
 	
-//	public static void main(String[] args) {
-//		byte[] array = {1, 2, 3, 4};
-//		
-//		for (byte b : array) {
-//			System.out.print(b + " ");
-//		}
-//		System.out.println();
-//		
-//		array = reverse(array);
-//		
-//		for (byte b : array) {
-//			System.out.print(b + " ");
-//		}
-//		System.out.println();
-//	}
+	private int convertInet4AddrToInt(byte[] addr) {
+		int addrInt = 0;
+		
+		byte[] reversedAddr = reverse(addr);
+		for (int i = 0; i < reversedAddr.length; i++) {
+			addrInt = (addrInt << 8) | (reversedAddr[i] & 0xFF);
+		}
+		
+		return addrInt;
+	}
 	
 	private byte[] reverse(byte[] array) {
 		int limit = array.length / 2;
+		byte[] reversedArray = new byte[array.length];
 		
 		for (int i = 0; i < limit; i++) {
-			byte tmp = array[i];
-			array[i] = array[array.length - i - 1];
-			array[array.length - i - 1] = tmp;
+			reversedArray[i] = array[array.length - i - 1];
+			reversedArray[reversedArray.length - i - 1] = array[i];
 		}
 		
-		return array;
+		return reversedArray;
+	}
+	
+	private long generateRemoteDeviceHash(byte[] inet4addr, int port) {
+		int addrInt = convertInet4AddrToInt(inet4addr);
+		long hash = 0;
+		
+		hash = ((hash | addrInt) << 32) | port;
+		
+		return hash;
 	}
 	
 	private byte[] getMyInetAddress() {
@@ -94,7 +103,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		Log.i(TAG, "*** JOB STARTED!");
 
 		try {
-			InetSocketAddress localPort = new InetSocketAddress(LOCAL_PORT);
+			InetSocketAddress localPort = new InetSocketAddress(udpPort);
 			udpChannel = DatagramChannel.open();
 			udpChannel.socket().bind(localPort);
 			udpChannel.configureBlocking(false);
@@ -129,6 +138,8 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 							if(senderAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), getMyInetAddress())) {
 								String receivedData = new String(buffer.array()).trim();
 								
+								processBeaconPacket(senderAddr.getAddress().getAddress(), senderAddr.getPort(), receivedData);
+								
 								Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + receivedData + ", " + data.getBytes().length);
 							}
 
@@ -137,8 +148,8 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 					}
 				}
 
-				if(System.currentTimeMillis() - lastRun > SEND_BEACON_INTERVAL) {
-					DatagramPacket packet = new DatagramPacket(data.getBytes(), data.length(), broadcastAddr, LOCAL_PORT);
+				if(System.currentTimeMillis() - lastRun > sendInterval) {
+					DatagramPacket packet = new DatagramPacket(data.getBytes(), data.length(), broadcastAddr, udpPort);
 					socket.send(packet);
 					
 					lastRun = System.currentTimeMillis();
@@ -167,6 +178,16 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		Log.i(TAG, "*** JOB TERMINATED!");
 		
 		return null;
+	}
+	
+	private void processBeaconPacket(byte[] remoteInet4Addr, int remotePort, String data) {
+		long hash = generateRemoteDeviceHash(remoteInet4Addr, remotePort);
+		
+		if(devices.containsKey(hash)) {
+			
+		} else {
+			
+		}
 	}
 	
 	private InetAddress getNetworkBroadcastAddr() {

@@ -10,7 +10,7 @@ import android.util.Log;
 
 class BeaconBroadcastReceiver extends BroadcastReceiver {
 
-	private static final String TAG = "BeaconBroadcastReceiver";
+	private static final String TAG = BeaconBroadcastReceiver.class.getSimpleName();
 	
 	@Override
 	public void onReceive(Context context, Intent intent) {
