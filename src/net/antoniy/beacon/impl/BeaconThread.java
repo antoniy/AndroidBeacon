@@ -23,12 +23,11 @@ import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
-import android.os.AsyncTask;
 import android.util.Log;
 
-class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
+class BeaconThread extends Thread {
 	
-	private static final String TAG = BeaconAsyncTask.class.getSimpleName();
+	private static final String TAG = BeaconThread.class.getSimpleName();
 
 	private Context context;
 	private DatagramSocket socket = null;
@@ -38,8 +37,9 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 	private int udpPort;
 	private int dataMaxSize;
 	private Hashtable<Long, DeviceInfoImpl> devices;
+	private boolean canceled = false;
 	
-	public BeaconAsyncTask(Context context, String data, int sendInterval, int udpPort, int maxDataSize) {
+	public BeaconThread(Context context, String data, int sendInterval, int udpPort, int maxDataSize) {
 		this.context = context;
 		this.data = data;
 		this.sendInterval = sendInterval;
@@ -94,12 +94,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 	}
 	
 	@Override
-	protected void onPreExecute() {
-		super.onPreExecute();
-	}
-
-	@Override
-	protected Void doInBackground(Void... params) {
+	public void run() {
 		Log.i(TAG, "*** JOB STARTED!");
 
 		try {
@@ -120,7 +115,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 			long lastRun = System.currentTimeMillis();
 //			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
 			while(true) {
-				if(isCancelled() || !isWifiConnected()) {
+				if(canceled || !isWifiConnected()) {
 					break;
 				}
 				
@@ -176,8 +171,6 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		}
 		
 		Log.i(TAG, "*** JOB TERMINATED!");
-		
-		return null;
 	}
 	
 	private void processBeaconPacket(byte[] remoteInet4Addr, int remotePort, String data) {
@@ -236,30 +229,8 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		}
 	}
 	
-	@Override
-	protected void onProgressUpdate(Void... values) {
-		// TODO Auto-generated method stub
-		super.onProgressUpdate(values);
-	}
-	
-	@Override
-	protected void onCancelled() {
-		Log.i(TAG, "*** JOB FINISHED!");
-		
-		try {
-			if(udpChannel != null) {
-				udpChannel.socket().close();
-				udpChannel.close();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			if(socket != null) {
-				socket.close();
-			}
-		}
-		
-		super.onCancelled();
+	public void cancel() {
+		this.canceled = true;
 	}
 	
 }

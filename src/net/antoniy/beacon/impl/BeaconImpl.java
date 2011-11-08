@@ -20,7 +20,7 @@ class BeaconImpl implements Beacon {
 	private static final String TAG = BeaconImpl.class.getSimpleName();
 	
 	private Context context;
-	private BeaconAsyncTask beaconAsyncTask;
+	private BeaconThread beaconThread;
 	private BeaconBroadcastReceiver broadcastReceiver;
 	private String jsonData;
 	private BeaconParams beaconParams; 
@@ -81,9 +81,9 @@ class BeaconImpl implements Beacon {
 	public void stopBeacon() {
 		context.unregisterReceiver(broadcastReceiver);
 		
-		if(beaconAsyncTask != null) {
-    		beaconAsyncTask.cancel(false);
-    		beaconAsyncTask = null;
+		if(beaconThread != null) {
+    		beaconThread.cancel();
+    		beaconThread = null;
     	}
 		
 		Log.i(TAG, "Beacon stopped!");
@@ -99,12 +99,12 @@ class BeaconImpl implements Beacon {
 		
 		context.registerReceiver(broadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 		
-		if(beaconAsyncTask != null) {
-    		beaconAsyncTask.cancel(false);
+		if(beaconThread != null) {
+    		beaconThread.cancel();
     	}
     	
-    	beaconAsyncTask = new BeaconAsyncTask(context, jsonData, beaconParams.getSendInterval(), beaconParams.getUdpPort(), beaconParams.getDataMaxSize());
-    	beaconAsyncTask.execute();
+    	beaconThread = new BeaconThread(context, jsonData, beaconParams.getSendInterval(), beaconParams.getUdpPort(), beaconParams.getDataMaxSize());
+    	beaconThread.start();
     	
     	Log.i(TAG, "Beacon started!");
 	}
