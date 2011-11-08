@@ -1,8 +1,11 @@
 package net.antoniy.beacon.impl;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
 
 import net.antoniy.beacon.Beacon;
+import net.antoniy.beacon.BeaconDeviceEventListener;
 import net.antoniy.beacon.BeaconParams;
 import net.antoniy.beacon.exception.BeaconException;
 import android.content.Context;
@@ -21,8 +24,12 @@ class BeaconImpl implements Beacon {
 	private BeaconBroadcastReceiver broadcastReceiver;
 	private String jsonData;
 	private BeaconParams beaconParams; 
+	private Collection<BeaconDeviceEventListener> beaconDeviceEventListeners;
 	
 	public BeaconImpl(Context context, BeaconParams beaconParams) throws BeaconException {
+		
+		// TODO: Validation of all parameters + validate the data by maxDataSize thingy.
+		
 		if(context == null || beaconParams == null) {
 			throw new BeaconException("Error initializing the Beacon: null initialization parameters passed.");
 		}
@@ -44,6 +51,7 @@ class BeaconImpl implements Beacon {
 		this.beaconParams = beaconParams;
 		
 		broadcastReceiver = new BeaconBroadcastReceiver();
+		beaconDeviceEventListeners = new ArrayList<BeaconDeviceEventListener>();
 	}
 	
 	public void updateData(Object newData) throws BeaconException {
@@ -57,6 +65,14 @@ class BeaconImpl implements Beacon {
 		this.beaconParams.setData(newData);
 		
 		// TODO: update in the async task
+	}
+	
+	public void addNewDeviceDiscoveredListener(BeaconDeviceEventListener listener) {
+		if(listener == null) {
+			return;
+		}
+		
+		beaconDeviceEventListeners.add(listener);
 	}
 	
 	/* (non-Javadoc)
@@ -87,7 +103,7 @@ class BeaconImpl implements Beacon {
     		beaconAsyncTask.cancel(false);
     	}
     	
-    	beaconAsyncTask = new BeaconAsyncTask(context, jsonData, beaconParams.getSendInterval(), beaconParams.getUdpPort());
+    	beaconAsyncTask = new BeaconAsyncTask(context, jsonData, beaconParams.getSendInterval(), beaconParams.getUdpPort(), beaconParams.getDataMaxSize());
     	beaconAsyncTask.execute();
     	
     	Log.i(TAG, "Beacon started!");

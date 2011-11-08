@@ -18,8 +18,6 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
 
-import net.antoniy.beacon.DeviceInfo;
-
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
@@ -38,14 +36,16 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 	private String data;
 	private int sendInterval;
 	private int udpPort;
-	private Hashtable<Long, DeviceInfo> devices;
+	private int dataMaxSize;
+	private Hashtable<Long, DeviceInfoImpl> devices;
 	
-	public BeaconAsyncTask(Context context, String data, int sendInterval, int udpPort) {
+	public BeaconAsyncTask(Context context, String data, int sendInterval, int udpPort, int maxDataSize) {
 		this.context = context;
 		this.data = data;
 		this.sendInterval = sendInterval;
 		this.udpPort = udpPort;
-		this.devices = new Hashtable<Long, DeviceInfo>();
+		this.dataMaxSize = maxDataSize;
+		this.devices = new Hashtable<Long, DeviceInfoImpl>();
 	}
 	
 	private boolean isWifiConnected() {
@@ -132,7 +132,7 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 						i.remove();
 						
 						if(key.isReadable()) {
-							buffer = ByteBuffer.allocate(1024);
+							buffer = ByteBuffer.allocate(dataMaxSize);
 							InetSocketAddress senderAddr = (InetSocketAddress) udpChannel.receive(buffer);
 							
 							if(senderAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), getMyInetAddress())) {
@@ -181,12 +181,29 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 	}
 	
 	private void processBeaconPacket(byte[] remoteInet4Addr, int remotePort, String data) {
-		long hash = generateRemoteDeviceHash(remoteInet4Addr, remotePort);
+		long deviceHash = generateRemoteDeviceHash(remoteInet4Addr, remotePort);
 		
-		if(devices.containsKey(hash)) {
-			
+		if(devices.containsKey(deviceHash)) {
+			DeviceInfoImpl deviceInfo = devices.get(deviceHash);
+			deviceInfo.setTimestampLastSeen(System.currentTimeMillis());
+
+			if(data != null && !data.equals(deviceInfo.getData())) {
+				deviceInfo.setData(data);
+				
+				// TODO: Notify for updated device.
+			}
 		} else {
+			long currentTimestamp = System.currentTimeMillis();
+			DeviceInfoImpl deviceInfo = new DeviceInfoImpl();
+			deviceInfo.setData(data);
+			deviceInfo.setInet4addr(remoteInet4Addr);
+			deviceInfo.setPort(remotePort);
+			deviceInfo.setTimestampDiscovered(currentTimestamp);
+			deviceInfo.setTimestampLastSeen(currentTimestamp);
 			
+			devices.put(deviceHash, deviceInfo);
+			
+			// TODO: Notify for new device.
 		}
 	}
 	
@@ -197,8 +214,9 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 
 		int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
 		byte[] quads = new byte[4];
-		for (int k = 0; k < 4; k++)
+		for (int k = 0; k < 4; k++) {
 			quads[k] = (byte) ((broadcast >> k * 8) & 0xFF);
+		}
 		
 		InetAddress broadcastAddr = null;
 		try {
@@ -216,6 +234,12 @@ class BeaconAsyncTask extends AsyncTask<Void, Void, Void> {
 		synchronized(this.data) {
 			this.data = data;
 		}
+	}
+	
+	@Override
+	protected void onProgressUpdate(Void... values) {
+		// TODO Auto-generated method stub
+		super.onProgressUpdate(values);
 	}
 	
 	@Override

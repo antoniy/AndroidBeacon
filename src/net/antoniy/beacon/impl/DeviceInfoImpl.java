@@ -51,5 +51,19 @@ public class DeviceInfoImpl implements DeviceInfo {
 	public void setTimestampLastSeen(long timestampLastSeen) {
 		this.timestampLastSeen = timestampLastSeen;
 	}
+
+	public boolean equals(DeviceInfoImpl deviceInfo) {
+		if(	port != deviceInfo.getPort() ||
+			timestampDiscovered != deviceInfo.getTimestampDiscovered() ||
+			!data.equals(deviceInfo.getData()) ||
+			inet4addr.length != deviceInfo.getInet4addr().length) {
+			
+			return false;
+		}
+		
+		
+		
+		return false;
+	}
 	
 }
