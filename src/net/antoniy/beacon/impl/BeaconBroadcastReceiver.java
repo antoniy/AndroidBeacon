@@ -12,6 +12,12 @@ class BeaconBroadcastReceiver extends BroadcastReceiver {
 
 	private static final String TAG = BeaconBroadcastReceiver.class.getSimpleName();
 	
+	private BeaconWifiEventListener beaconWifiEventListener;
+	
+	public BeaconBroadcastReceiver(BeaconWifiEventListener beaconWifiEventListener) {
+		this.beaconWifiEventListener = beaconWifiEventListener;
+	}
+	
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		final String action = intent.getAction();
@@ -19,8 +25,10 @@ class BeaconBroadcastReceiver extends BroadcastReceiver {
 		if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
 			NetworkInfo info = (NetworkInfo) intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
 			if (info.getType() == ConnectivityManager.TYPE_WIFI && info.isConnected()) {
+				beaconWifiEventListener.onWifiConnected();
 				Log.i(TAG, "WiFi is active!");
 			} else {
+				beaconWifiEventListener.onWifiDisconnected();
 				Log.i(TAG, "WiFi is NOT active!");
 			}
 		}

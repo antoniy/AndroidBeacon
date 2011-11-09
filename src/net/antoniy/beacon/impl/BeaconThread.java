@@ -13,11 +13,15 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
+import net.antoniy.beacon.DeviceInfo;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
@@ -28,69 +32,29 @@ import android.util.Log;
 class BeaconThread extends Thread {
 	
 	private static final String TAG = BeaconThread.class.getSimpleName();
-
+	public static final int CHECK_FOR_TIMEOUT_INTERVAL_IN_MILLIS = 3000;
+	
 	private Context context;
+	private BeaconInternalAccessor beaconInternalAccessor;
 	private DatagramSocket socket = null;
 	private DatagramChannel udpChannel = null;
 	private String data;
 	private int sendInterval;
 	private int udpPort;
 	private int dataMaxSize;
-	private Hashtable<Long, DeviceInfoImpl> devices;
+	private Hashtable<Integer, DeviceInfoImpl> devices;
 	private boolean canceled = false;
+	private int beaconTimeout;
 	
-	public BeaconThread(Context context, String data, int sendInterval, int udpPort, int maxDataSize) {
+	public BeaconThread(Context context, BeaconInternalAccessor beaconInternalAccessor, String data, int sendInterval, int udpPort, int maxDataSize, int beaconTimeout) {
 		this.context = context;
+		this.beaconInternalAccessor = beaconInternalAccessor;
 		this.data = data;
 		this.sendInterval = sendInterval;
 		this.udpPort = udpPort;
 		this.dataMaxSize = maxDataSize;
-		this.devices = new Hashtable<Long, DeviceInfoImpl>();
-	}
-	
-	private boolean isWifiConnected() {
-		ConnectivityManager connManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-		NetworkInfo wifiInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-
-		return wifiInfo.isConnected();
-	}
-	
-	private int convertInet4AddrToInt(byte[] addr) {
-		int addrInt = 0;
-		
-		byte[] reversedAddr = reverse(addr);
-		for (int i = 0; i < reversedAddr.length; i++) {
-			addrInt = (addrInt << 8) | (reversedAddr[i] & 0xFF);
-		}
-		
-		return addrInt;
-	}
-	
-	private byte[] reverse(byte[] array) {
-		int limit = array.length / 2;
-		byte[] reversedArray = new byte[array.length];
-		
-		for (int i = 0; i < limit; i++) {
-			reversedArray[i] = array[array.length - i - 1];
-			reversedArray[reversedArray.length - i - 1] = array[i];
-		}
-		
-		return reversedArray;
-	}
-	
-	private long generateRemoteDeviceHash(byte[] inet4addr, int port) {
-		int addrInt = convertInet4AddrToInt(inet4addr);
-		long hash = 0;
-		
-		hash = ((hash | addrInt) << 32) | port;
-		
-		return hash;
-	}
-	
-	private byte[] getMyInetAddress() {
-		WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-
-		return reverse(BigInteger.valueOf(wifiManager.getConnectionInfo().getIpAddress()).toByteArray());
+		this.devices = new Hashtable<Integer, DeviceInfoImpl>();
+		this.beaconTimeout = beaconTimeout;
 	}
 	
 	@Override
@@ -112,8 +76,10 @@ class BeaconThread extends Thread {
 			
 			InetAddress broadcastAddr = getNetworkBroadcastAddr();
 			ByteBuffer buffer = null;
+			
 			long lastRun = System.currentTimeMillis();
-//			CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
+			long startTimeForTimeoutChecking = System.currentTimeMillis();
+			
 			while(true) {
 				if(canceled || !isWifiConnected()) {
 					break;
@@ -130,16 +96,15 @@ class BeaconThread extends Thread {
 							buffer = ByteBuffer.allocate(dataMaxSize);
 							InetSocketAddress senderAddr = (InetSocketAddress) udpChannel.receive(buffer);
 							
-							if(senderAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), getMyInetAddress())) {
+							byte[] myInetAddr = getMyInetAddress();
+							if(senderAddr != null && myInetAddr != null && !Arrays.equals(senderAddr.getAddress().getAddress(), myInetAddr)) {
 								String receivedData = new String(buffer.array()).trim();
 								
-								processBeaconPacket(senderAddr.getAddress().getAddress(), senderAddr.getPort(), receivedData);
+								processBeaconPacket(senderAddr.getAddress().getAddress(), receivedData);
 								
-								Log.i(TAG, "UDP[" + senderAddr.getHostName() + ":" + senderAddr.getPort() +"]: " + receivedData + ", " + data.getBytes().length);
+								Log.i(TAG, "UDP[" + senderAddr.getHostName() + "]: " + receivedData + ", " + data.getBytes().length);
 							}
-
 						}
-						
 					}
 				}
 
@@ -149,11 +114,15 @@ class BeaconThread extends Thread {
 					
 					lastRun = System.currentTimeMillis();
 				}
+				
+				if(System.currentTimeMillis() - startTimeForTimeoutChecking > CHECK_FOR_TIMEOUT_INTERVAL_IN_MILLIS && devices.size() > 0) {
+					checkForTimeoutDevices();
+				}
 			}
 		} catch (SocketException e1) {
-			e1.printStackTrace();
+			Log.w(TAG, e1);
 		} catch (IOException e1) {
-			e1.printStackTrace();
+			Log.w(TAG, e1);
 		} finally {
 			try {
 				if(udpChannel != null) {
@@ -161,20 +130,51 @@ class BeaconThread extends Thread {
 					udpChannel.close();
 				}
 			} catch (IOException e) {
-				e.printStackTrace();
+				Log.w(TAG, e);
 			} finally {
 				if(socket != null) {
 					socket.close();
 				}
 			}
-			
 		}
 		
+		beaconInternalAccessor.onBeaconThreadFinished();
 		Log.i(TAG, "*** JOB TERMINATED!");
 	}
 	
-	private void processBeaconPacket(byte[] remoteInet4Addr, int remotePort, String data) {
-		long deviceHash = generateRemoteDeviceHash(remoteInet4Addr, remotePort);
+	private boolean isWifiConnected() {
+		ConnectivityManager connManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+		NetworkInfo wifiInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+	
+		return wifiInfo.isConnected();
+	}
+	
+	private byte[] getMyInetAddress() {
+		WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+	
+		int addr = wifiManager.getConnectionInfo().getIpAddress();
+		if(addr == 0) {
+			return null;
+		}
+		
+		return BeaconUtils.reverse(BigInteger.valueOf(addr).toByteArray());
+	}
+	
+	private void checkForTimeoutDevices() {
+		Collection<DeviceInfoImpl> activeDevices = devices.values();
+		
+		for(Iterator<DeviceInfoImpl> iter = activeDevices.iterator(); iter.hasNext();) {
+			DeviceInfoImpl deviceInfo = iter.next();
+			
+			if(System.currentTimeMillis() - deviceInfo.getTimestampLastSeen() > beaconTimeout) {
+				devices.remove(deviceInfo.getHash());
+				beaconInternalAccessor.onDeviceRemoved(deviceInfo);
+			}
+		}
+	}
+	
+	private void processBeaconPacket(byte[] remoteInet4Addr, String data) {
+		int deviceHash = BeaconUtils.convertInet4AddrToInt(remoteInet4Addr);
 		
 		if(devices.containsKey(deviceHash)) {
 			DeviceInfoImpl deviceInfo = devices.get(deviceHash);
@@ -182,21 +182,19 @@ class BeaconThread extends Thread {
 
 			if(data != null && !data.equals(deviceInfo.getData())) {
 				deviceInfo.setData(data);
-				
-				// TODO: Notify for updated device.
+				beaconInternalAccessor.onDeviceUpdated(deviceInfo);
 			}
 		} else {
 			long currentTimestamp = System.currentTimeMillis();
 			DeviceInfoImpl deviceInfo = new DeviceInfoImpl();
 			deviceInfo.setData(data);
-			deviceInfo.setInet4addr(remoteInet4Addr);
-			deviceInfo.setPort(remotePort);
 			deviceInfo.setTimestampDiscovered(currentTimestamp);
 			deviceInfo.setTimestampLastSeen(currentTimestamp);
+			deviceInfo.setHash(deviceHash);
 			
 			devices.put(deviceHash, deviceInfo);
 			
-			// TODO: Notify for new device.
+			beaconInternalAccessor.onDeviceDiscovered(deviceInfo);
 		}
 	}
 	
@@ -221,6 +219,27 @@ class BeaconThread extends Thread {
 		Log.i(TAG, "Broadcast: " + broadcastAddr.getHostAddress());
 		
 		return broadcastAddr;
+	}
+	
+	public List<DeviceInfo> getAllDiscoveredDevices() {
+		List<DeviceInfo> discoveredDevices = new ArrayList<DeviceInfo>();
+		
+		DeviceInfo tmpDeviceInfo = null;
+		synchronized (devices) {
+			for (DeviceInfoImpl deviceInfo : devices.values()) {
+				try {
+					tmpDeviceInfo = (DeviceInfo) deviceInfo.clone();
+				} catch (CloneNotSupportedException e) {
+					Log.e(TAG, e.getMessage());
+				}
+				
+				if(tmpDeviceInfo != null) {
+					discoveredDevices.add(tmpDeviceInfo);
+				}
+			}
+		}
+		
+		return discoveredDevices;
 	}
 	
 	public void updateBeaconData(String data) {

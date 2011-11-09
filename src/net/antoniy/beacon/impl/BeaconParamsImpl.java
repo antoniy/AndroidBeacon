@@ -10,7 +10,7 @@ class BeaconParamsImpl implements BeaconParams {
 	private Class<? extends Serializable> dataClazz;
 	private Object data;
 	private int beaconTimeout;
-	private int dataMaxSize;
+	private int dataMaxSize = 512;
 	
 	public BeaconParamsImpl() {
 	}

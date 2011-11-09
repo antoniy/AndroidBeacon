@@ -2,30 +2,17 @@ package net.antoniy.beacon.impl;
 
 import net.antoniy.beacon.DeviceInfo;
 
-public class DeviceInfoImpl implements DeviceInfo {
-	private byte[] inet4addr;
-	private int port;
+public class DeviceInfoImpl implements DeviceInfo, Cloneable {
 	private String data;
 	private long timestampDiscovered;
 	private long timestampLastSeen;
+	private int hash;
 	
 	public DeviceInfoImpl() {
 	}
 
 	public byte[] getInet4addr() {
-		return inet4addr;
-	}
-
-	public void setInet4addr(byte[] inet4addr) {
-		this.inet4addr = inet4addr;
-	}
-
-	public int getPort() {
-		return port;
-	}
-
-	public void setPort(int port) {
-		this.port = port;
+		return BeaconUtils.convertIntToInet4Addr(hash);
 	}
 
 	public String getData() {
@@ -52,18 +39,16 @@ public class DeviceInfoImpl implements DeviceInfo {
 		this.timestampLastSeen = timestampLastSeen;
 	}
 
-	public boolean equals(DeviceInfoImpl deviceInfo) {
-		if(	port != deviceInfo.getPort() ||
-			timestampDiscovered != deviceInfo.getTimestampDiscovered() ||
-			!data.equals(deviceInfo.getData()) ||
-			inet4addr.length != deviceInfo.getInet4addr().length) {
-			
-			return false;
-		}
-		
-		
-		
-		return false;
+	public int getHash() {
+		return hash;
 	}
-	
+
+	public void setHash(int hash) {
+		this.hash = hash;
+	}
+
+	@Override
+	protected Object clone() throws CloneNotSupportedException {
+		return super.clone();
+	}
 }
