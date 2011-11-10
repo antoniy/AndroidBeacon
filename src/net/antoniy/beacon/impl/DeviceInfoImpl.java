@@ -2,7 +2,7 @@ package net.antoniy.beacon.impl;
 
 import net.antoniy.beacon.DeviceInfo;
 
-public class DeviceInfoImpl implements DeviceInfo, Cloneable {
+class DeviceInfoImpl implements DeviceInfo, Cloneable {
 	private String data;
 	private long timestampDiscovered;
 	private long timestampLastSeen;

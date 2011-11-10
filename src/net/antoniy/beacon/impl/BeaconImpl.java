@@ -87,7 +87,7 @@ class BeaconImpl implements Beacon, BeaconInternalAccessor, BeaconWifiEventListe
 		}
 	}
 	
-	public void updateBeaconData(Object newData) throws BeaconException, BeaconStoppedException {
+	public void updateBeaconData(Object newData) throws BeaconException {
 		Class<? extends Serializable> dataClazz = beaconParams.getDataClazz();
 		
 		if(!dataClazz.isInstance(newData)) {
@@ -102,11 +102,9 @@ class BeaconImpl implements Beacon, BeaconInternalAccessor, BeaconWifiEventListe
 		
 		this.beaconParams.setData(newData);
 		
-		if(beaconThread == null) {
-			throw new BeaconStoppedException("Beacon service is stopped.");
+		if(beaconThread != null) {
+			beaconThread.updateBeaconData(jsonData);
 		}
-		
-		beaconThread.updateBeaconData(jsonData);
 	}
 	
 	public void addBeaconDeviceEventListener(BeaconDeviceEventListener listener) {
@@ -146,11 +144,7 @@ class BeaconImpl implements Beacon, BeaconInternalAccessor, BeaconWifiEventListe
 	/* (non-Javadoc)
 	 * @see net.antoniy.beacon.impl.Beacon#startBeacon()
 	 */
-	public synchronized void startBeacon() throws BeaconException {
-		if(beaconParams == null) {
-			throw new BeaconException("Data initialization missing.");
-		}
-		
+	public synchronized void startBeacon() {
 		context.registerReceiver(broadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 		
 		if(beaconThread != null) {
